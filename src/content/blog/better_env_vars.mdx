@@ -1,0 +1,71 @@
+---
+title: 'Better Environment Variables'
+description: 'How I learned to make env vars recognized by intellisense and tsc'
+heroImage: '../../assets/images/environment.d.ts.png'
+pubDate: 'August 3, 2024'
+category: 'Code Examples'
+tags: ['JavaScript', 'TypeScript', 'ExpressJS']
+---
+
+**Better Env Vars for Great Good!**
+
+Environment variables that you can easily error check, throw transpilation errors, and can be imported by name!
+
+## The Problem
+
+You need environment variables, but you don't know how to properly behave when required vars are missing, don't want to bloat your project with packages like `dotenv`, and want intellisense support for them!
+
+## The Solution
+
+The solution is to add environment variable declarations to `process.env` in the global namespace.
+
+```ts
+// in environment.d.ts at project root
+declare global {
+	namespace NodeJS {
+		interface ProcessEnv {
+			LOGIN_TABLE: string
+			NEO4J_CONNECTION_MAX_RETRIES?: string
+			NEO4J_PW: string
+			NEO4J_UNAME: string
+			NEO4J_URI: string
+			ORIGIN: string
+			PINO_LOG_HTTP?: string
+			PINO_LOG_LEVEL?: string
+			PORT?: string
+		}
+	}
+}
+```
+
+Time to use them!
+
+```ts
+// <root>/index.ts
+const {
+	NEO4J_PW,
+	NEO4J_URI,
+	NEO4J_UNAME,
+	NEO4J_CONNECTION_MAX_RETRIES,
+	PORT,
+	ORIGIN,
+	PINO_LOG_HTTP
+} = process.env
+
+// Initialize Neo4J connection
+if (!NEO4J_URI || !NEO4J_UNAME || !NEO4J_PW) {
+	log.error(
+		`Missing Neo4J parameters: ${JSON.stringify({
+			uri: NEO4J_URI,
+			uname: NEO4J_UNAME,
+			pw: !!NEO4J_PW
+		})}`
+	)
+	throw new Error('Missing Neo4J parameter')
+}
+const localNeo4JDriver: Neo4JDriver = new Neo4JDriver(NEO4J_URI, NEO4J_UNAME, NEO4J_PW)
+```
+
+I just love that you get a nice little import wherever you need to use your env vars. They're declared up front, not duplicated, and are picked up by intellisense! My only frustration is that they can only be strings, but I that's the case with packages like `dotenv` as well afaik.
+
+Happy coding!

@@ -1,0 +1,109 @@
+---
+title: 'Passing Objects to API Request Handlers with ExpressJS'
+description: 'How I pass Objects through to API request handlers in ExpressJS'
+heroImage: '../../assets/images/about_to_code.jpg'
+pubDate: 'August 3, 2024'
+category: 'Code Examples'
+tags: ['JavaScript', 'TypeScript', 'ExpressJS']
+---
+
+**Loggers, DALs, and more**
+
+Modular, maintainable, extensible pattern for accessing objects without import.
+
+## The Problem
+
+You have a need to access an object in multiple API request handlers, but don't want to create a singleton (especially in JS) and import it everywhere.
+
+## The Solution
+
+The solution is a pattern I'm calling Request Injection Middleware.
+
+```ts
+// <root>/index.ts
+const localNeo4JDriver: Neo4JDriver = new Neo4JDriver(
+    NEO4J_URI,
+    NEO4J_UNAME,
+    NEO4J_PW
+);
+localNeo4JDriver.initializeDriver();
+...
+const app: Express = express();
+...
+app.use((req, _, next) => {
+    try {
+        req.n4jDriver = localNeo4JDriver.getDriver()!;
+    } catch (e) {
+        log.error(e);
+        process.exit(1);
+    }
+    next();
+});
+```
+
+The Neo4JDriver class is used to instantiate a driver when the server starts for use during request handling. Since request handlers don't seem to have proper access to app-level objects (they're supposed to, but `app.set()` seems to only store strings properly and not objects), I decided to just inject my objects into the request object using a middleware lambda. They can then be accessed in the request handler.
+
+```ts
+// Register/index.ts
+// router object for the register endpoint
+router
+    .post("/", async (req: Request, res: Response) => {
+        const neo4jDriver: Driver = req.n4jDriver;
+```
+
+This way I don't have to mess with JS singletons. I'm going to want a bunch of Neo4JDrivers spun up dynamically for federation purposes, so creating a singleton is not ideal.
+
+To alter the Request object to permit the new parameters, add this to the environment.d.ts:
+
+```ts
+import { Driver } from 'neo4j-driver'
+declare global {
+	namespace Express {
+		export interface Request {
+			n4jDriver: Driver
+		}
+	}
+}
+export {}
+```
+
+Happy coding!
+
+### Neo4JDriver class
+
+For reference, here is the Neo4JDriver class.
+
+```ts
+export class Neo4JDriver {
+	private driver: Driver | null = null
+
+	constructor(
+		readonly uri: string,
+		readonly uname: string,
+		private pw: string
+	) {}
+
+	async initializeDriver(): Promise<boolean> {
+		try {
+			this.driver = neo4j.driver(this.uri, neo4j.auth.basic(this.uname, this.pw))
+			const serverInfo = await this.driver.getServerInfo()
+			log.info('Neo4J connection established')
+			log.info(serverInfo)
+		} catch (err) {
+			if (typeof err === 'string') {
+				log.error(`Neo4J connection error: ${err}`)
+			} else if (err instanceof Neo4jError) {
+				log.error(`Neo4J connection error: ${err}\nCause:${err?.cause}`)
+			} else {
+				log.error(`Neo4J connection error: ${JSON.stringify(err)}`)
+			}
+			return false
+		}
+		return true
+	}
+
+	getDriver(): Driver | null {
+		return this.driver
+	}
+}
+```

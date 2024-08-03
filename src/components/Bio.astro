@@ -1,0 +1,47 @@
+---
+import { Image } from 'astro:assets'
+import headshot from '../assets/images/headshot.jpg'
+---
+
+<div class='relative flex flex-wrap min-w-full gap-4'>
+	<div
+		class='relative flex flex-wrap min-w-full gap-4'
+		style='align-items:center; padding-bottom: 1em;'
+	>
+		<Image
+			style='padding-bottom: 10px; display: flex; float: left; height: 245px; width: 200px; border-radius: 20%;'
+			src={headshot}
+			alt='Headshot of Iden Busia'
+			width='200'
+		/>
+		<div style='flex: min-content'>
+			<p>My name is James Iden Busia. I go by Iden (pronounced eye-den). I make software.</p>
+			<br />
+			<p>
+				My current project is a bespoke social media application called Community. This project was
+				born of the desire to share family photos and messages with close friends and family
+				securely. I have a wonderful acquired family that I love and want to share my life with.
+				There ought to be a simple social media network that allows me to carefully and easily
+				curate who sees my posts and who I'm interacting with.
+			</p>
+			<br />
+			<p>
+				I got the idea of federation from Mastodon. When Twitter was officially being purchased by
+				Musk, I quickly looked for alternatives. Mastodon is great, but when I tried to set up my
+				own server it turned out to be a huge pain. I'm passionate about FOSS, so I devled into the
+				whole ecosystem, but the solutions I found were all similar to Mastodon. I love to code, and
+				I'm a big-time DIYer, so I decided to make my own.
+			</p>
+			<br />
+			<p>
+				Check out the Community project <a
+					class='normal-text'
+					href='https://github.com/theguruofreason/community'
+					target='_blank'
+					rel='noopener noreferrer'>here</a
+				>.
+			</p>
+		</div>
+	</div>
+	<div class='hidden sm:block absolute w-full bottom-0 border-b-2 -z-40 dark:border-gray-600'></div>
+</div>

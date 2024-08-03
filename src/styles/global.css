@@ -26,6 +26,11 @@
 	  color: var(--shiki-dark) !important;
 	  background-color: theme(colors.gray.900) !important;
 	}
+
+	a.normal-text {
+		color:rgb(200, 85, 200);
+	}
+
 }
 
 .glass {
