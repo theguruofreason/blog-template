@@ -1,0 +1,93 @@
+---
+title: 'ExpressJS Error Handling'
+description: 'How I handle errors on an ExpressJS server'
+heroImage: '../../assets/images/expressJSerrors.png'
+pubDate: 'August 13, 2024'
+category: 'Code Examples'
+tags: ['JavaScript', 'TypeScript', 'ExpressJS']
+---
+
+## The Problem
+
+You need to handle 2 different major types of errors when hosting a server using ExpressJS; HTTP errors and logic errors. You would like to not crash when request processing fails, but also don't want to pollute your codebase with try-catch blocks.
+
+## The Solution
+
+The pattern I've settled on (for the moment) is to handle the request the inside a (usually async) function within the routing call, sending status with `.then()` if if the request handling succeeds, but `.catch()` and pass to `next()` if there is an error. This way, I can simply call `throw <error>` inside the request handler function, and any errors, whether manually thrown or not, will end up at the custom error handler middleware.
+
+```ts
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+	const neo4jDriver: Driver = req.n4jDriver
+	const email: string = req.body.email || ''
+	const uname: string = req.body.uname
+	const pass: string = req.body.pass
+	if (!uname || !pass) {
+		throw {
+			status: 400,
+			message: 'Username and password required.'
+		}
+	}
+	register(uname, pass, email, neo4jDriver)
+		.then(() => {
+			res.sendStatus(200)
+		})
+		.catch((e: any) => {
+			next(e)
+		})
+})
+```
+
+register() (aka, the request handler function):
+
+```ts
+async function register(
+	uname: string,
+	pass: string,
+	email: string,
+	n4jDriver: Driver
+): Promise<void> {
+	const loginDB = await getLoginDb()
+	if (!loginDB) {
+		throw new Error('Failed to load login db')
+	}
+
+	// Check if user already registered
+	const stmt = `SELECT * FROM ${LOGIN_TABLE} WHERE uname=:uname`
+	const result = await loginDB.get(stmt, {
+		':uname': uname
+	})
+	if (result) {
+		throw {
+			status: 400,
+			message: `uname ${uname} already registered.`
+		}
+	}
+}
+```
+
+Since we're just calling `next()` with the error when one is thrown from the request handler, the error can be ultimately caught and processed by the error handler middleware.
+
+```ts
+export interface IErrorWithStatus extends Error {
+	readonly status: number
+}
+
+export const ErrorHandler = (
+	err: Error | IErrorWithStatus,
+	req: Request,
+	res: Response,
+	next: NextFunction
+): void => {
+	req.log.error(err, err.message)
+	if ('status' in err) {
+		res.status(err.status)
+	} else {
+		res.status(500)
+	}
+	res.send(err.message)
+}
+```
+
+Notice here that I've added a custom error interface and handled it within the custom error handler. Because it's an interface, it can be further extended to include more fields. Originally, I implemented this interface as a class to mimic the built-in `Error` class, but since I wasn't implementing any methods on it and was only using it for typechecking, it seemed inappropriate for it to be a class and not simply an interface.
+
+Happy coding!

@@ -66,6 +66,6 @@ if (!NEO4J_URI || !NEO4J_UNAME || !NEO4J_PW) {
 const localNeo4JDriver: Neo4JDriver = new Neo4JDriver(NEO4J_URI, NEO4J_UNAME, NEO4J_PW)
 ```
 
-I just love that you get a nice little import wherever you need to use your env vars. They're declared up front, not duplicated, and are picked up by intellisense! My only frustration is that they can only be strings, but I that's the case with packages like `dotenv` as well afaik.
+I just love that you get a nice little import wherever you need to use your env vars. They're declared up front, not duplicated, and are picked up by intellisense! My only frustration is that they can only be strings, but that's the case with packages like `dotenv` as well afaik.
 
 Happy coding!
