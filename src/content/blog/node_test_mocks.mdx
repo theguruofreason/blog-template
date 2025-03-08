@@ -1,0 +1,138 @@
+---
+title: 'Node Test Mocks'
+description: "How I learned to mock inner functions for node's built-in test module"
+heroImage: '../../assets/images/about_to_code.jpg'
+pubDate: 'March 8, 2025'
+category: 'Code Examples'
+tags: ['JavaScript', 'TypeScript', 'Node', 'Testing']
+---
+
+**Mocking Inner Functions Using Node:test and esmock**
+
+I recently decided to implement some basic testing for Community. I was familiar with Mocha, Chai, and Sinon from work at MCG, but I want Community to use as few dependencies as possible. I took a few days and produced a working solution with Jest, but one of my colleagues informed me that Jest overwrites global variables and that Node now has a robust test package that supports TypeScript natively. I gave it a shot, but hit a brick wall when I had to mock database interactions called by functions in my authentication/authorization modules. It turns out that Node:test has mock functionality, but doesn't support mocking 2nd level imports. After many hours of searching, I finally found a working and pretty minimal solution: [esmock](https://www.npmjs.com/package/esmock).
+
+## The Problem
+
+You're using Node:test and need to test a function that calls another function whose functionality you want to mock.
+
+## The Solution
+
+The solution I've settled on is [esmock](https://www.npmjs.com/package/esmock).
+
+Here is some logic from Community's auth module that gets the login database and uses it for some lookups:
+
+```ts
+// <root>/src/auth/auth.ts
+import { getLoginDB } from 'db'
+const { LOGIN_TABLE } = process.env
+// ...
+export async function requireValidToken(
+	req: Request,
+	res: Response,
+	next: NextFunction
+): Promise<void> {
+	// do stuff to get the token out of the request cookies and decipher it
+	try {
+		const loginDB = await getLoginDB()
+		const tokenResult = await loginDB.get<{ token: string }>(
+			`SELECT token FROM ${LOGIN_TABLE} WHERE id=:userID`,
+			{ ':userID': id }
+		)
+		// use tokenResult...
+	} catch (e) {
+		next(e)
+	}
+}
+```
+
+We want to test `requireValidToken`, but we don't want to call `getLoginDB` because we want to use a mock database for testing that is prepopulated with testing data.
+
+```ts
+// <root>/src/auth/auth.test.ts
+import { describe, it, after } from 'node:test'
+import { Database, open } from 'sqlite'
+import { Request, Response } from 'express'
+import assert from 'node:assert'
+import sqlite3 from 'sqlite3'
+import { requireValidToken } from './auth'
+
+describe('Auth', async () => {
+	const userID: number = Math.ceil(Math.random() * 1000)
+	const userName: string = 'testUser'
+	const userPassword: string = 'Us3rP4ssw0rd'
+	const userRoles: number[] = [1, 2]
+	const userInfo = { id: userID, uname: userName, roles: userRoles }
+	let loginDB: Database<sqlite3.Database, sqlite3.Statement> = await open({
+		filename: ':memory:',
+		driver: sqlite3.Database
+	})
+	await loginDB.exec(
+		`CREATE TABLE ${LOGIN_TABLE} (id INT NOT NULL, uname TEXT NOT NULL, pass TEXT NOT NULL, token TEXT NULL)`
+	)
+	await loginDB.exec(
+		`INSERT INTO ${LOGIN_TABLE} (id, uname, pass) VALUES (${userID}, '${userName}', '${userPassword}')`
+	)
+
+	it('validates a token', async () => {
+		const encryptedToken = auth.generateToken(userInfo)
+		await loginDB.exec(`UPDATE ${LOGIN_TABLE} SET token='${encryptedToken}' WHERE id=${userID}`)
+		const req = { headers: { cookie: `token=${encryptedToken}` } }
+		requireValidToken(req as Request, {} as Response, (e) => {
+			if (e) throw e
+		})
+	})
+})
+```
+
+When the test calls `requireValidToken`, that function will call `getLoginDB`, which does not get our testing database! `esmock` to the rescue!
+
+```ts
+// <root>/src/auth/auth.ts
+import esmock from 'esmock' // new import
+import { describe, it, after } from 'node:test'
+import { Database, open } from 'sqlite'
+import { Request, Response } from 'express'
+import assert from 'node:assert'
+import sqlite3 from 'sqlite3'
+const { LOGIN_TABLE } = process.env
+
+describe('Auth', async () => {
+	const userID: number = Math.ceil(Math.random() * 1000)
+	const userName: string = 'testUser'
+	const userPassword: string = 'Us3rP4ssw0rd'
+	const userRoles: number[] = [1, 2]
+	const userInfo = { id: userID, uname: userName, roles: userRoles }
+	let loginDB: Database<sqlite3.Database, sqlite3.Statement> = await open({
+		filename: ':memory:',
+		driver: sqlite3.Database
+	})
+	// mock the getLoginDB function imported by auth.ts using esmock
+	// NOTE: this creates an 'auth' object that must be used for all calls to functions from the module
+	const auth = await esmock('./auth.ts', import.meta.url, {
+		'../db.ts': {
+			getLoginDB: () => loginDB
+		}
+	})
+	await loginDB.exec(
+		`CREATE TABLE ${LOGIN_TABLE} (id INT NOT NULL, uname TEXT NOT NULL, pass TEXT NOT NULL, token TEXT NULL)`
+	)
+	await loginDB.exec(
+		`INSERT INTO ${LOGIN_TABLE} (id, uname, pass) VALUES (${userID}, '${userName}', '${userPassword}')`
+	)
+
+	it('validates a token', async () => {
+		// use the mocked 'auth' module. This is actually not necessary here, but since we've basically already imported it via mocking, we'll use it.
+		const encryptedToken = auth.generateToken(userInfo)
+		await loginDB.exec(`UPDATE ${LOGIN_TABLE} SET token='${encryptedToken}' WHERE id=${userID}`)
+		const req = { headers: { cookie: `token=${encryptedToken}` } }
+		// Here we MUST use the mocked 'auth' module, as the function we're calling uses our mocked function.
+		auth.requireValidToken(req as Request, {} as Response, (e) => {
+			if (e) throw e
+		})
+	})
+})
+```
+
+That's it! `requireValidToken` uses our mocked `getLoginDB` function which returns our `loginDB` with our test data. The rest of the module functions as normal. You can even debug and trace into the module and see that it's call to `getLoginDB` uses the mock. While `Node:test` currently supports spying and mocking first-order imported modules and functions, I hope that support for second-order imports is eventually added.
+
+Happy coding!
