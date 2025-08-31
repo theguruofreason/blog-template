@@ -14,13 +14,14 @@ type Props = {
 }
 
 const { data, readTime, headings, id } = Astro.props
-const { title, description, pubDate, heroImage, tags } = data
+const { title, subtitle, description, pubDate, heroImage, tags } = data
 
 const articleDate = pubDate.toISOString()
 ---
 
 <BaseLayout
 	title={title}
+	subtitle={subtitle}
 	description={description}
 	image={heroImage?.src}
 	articleDate={articleDate}
@@ -39,6 +40,7 @@ const articleDate = pubDate.toISOString()
 				<h1 class='text-center text-4xl md:text-6xl md:pb-2.5 font-semibold'>
 					{title}
 				</h1>
+				{subtitle && <h3 class='text-center text-2xl md:pb-2.5 font-semibold'>{subtitle}</h3>}
 			</div>
 
 			<div class='flex flex-wrap justify-center items-center gap-2 gap-y-4 md:gap-5'>
@@ -52,11 +54,10 @@ const articleDate = pubDate.toISOString()
 					<Image
 						src={heroImage}
 						width={500}
-						height={250}
 						quality={100}
 						format='jpg'
 						loading='eager'
-						class='rounded-md w-full max-h-[300px] md:max-h-[250px] md:max-w-[50%] my-8 object-cover'
+						class='rounded-md w-full max-h-[300px] md:max-h-[900px] md:max-w-[50%] my-8 object-cover'
 						alt={`img of ${title}`}
 						style='margin-left: auto; margin-right: auto;'
 					/>
