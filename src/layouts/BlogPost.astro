@@ -14,7 +14,8 @@ type Props = {
 }
 
 const { data, readTime, headings, id } = Astro.props
-const { title, subtitle, description, pubDate, heroImage, tags } = data
+const { title, subtitle, description, pubDate, heroImage, heroImageSource, heroImageCredit, tags } =
+	data
 
 const articleDate = pubDate.toISOString()
 ---
@@ -64,6 +65,22 @@ const articleDate = pubDate.toISOString()
 				)
 			}
 		</>
+
+		{
+			(heroImageSource || heroImageCredit) && (
+				<div class='text-center' style='margin-top: -2rem'>
+					{heroImageCredit && <span>photo by: {heroImageCredit}</span>}
+					{heroImageSource && (
+						<>
+							<br />
+							<span class='text-center'>
+								source: <a href={heroImageSource}>{heroImageSource}</a>
+							</span>
+						</>
+					)}
+				</div>
+			)
+		}
 
 		<hr />
 
